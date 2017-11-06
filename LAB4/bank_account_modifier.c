@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
     run_transfer(account_sem_id, account_ptr, account_from, account_to, cash_amount, nb_steps);
   }
 
-  // Run balances of all accounts at end of program
+  // Print balances of all accounts at end of program
   for(i = 0; i < MAX_ACCOUNTS; i++) {
     printf("[%d]", account_ptr[i]);
   }
@@ -169,17 +169,18 @@ void sem_post(int sem_id, int semnum) {
 void run_withdraw(int account_sem_id, int* account_ptr, int account_idx, int cash_amount, int nb_steps) {
   int i, prev_value;
 
+  printf("[WITHDRAW] Account: %d\tCash amount: %d\tSteps: %d\n", account_idx, cash_amount, nb_steps);
   for(i = 0; i < nb_steps; i++) {
-    printf("[%d/%d] WITHDRAW --> adding %d cash to account %d\n", i+1, nb_steps, cash_amount, account_idx);
-    
     sem_wait(account_sem_id, account_idx);
+
     prev_value = account_ptr[account_idx];
     RAND_SLEEP
     account_ptr[account_idx] += cash_amount;
     assert(prev_value + cash_amount == account_ptr[account_idx]);
-    printf("Now on account %d: %d cash (previously %d)\n", account_idx, account_ptr[account_idx], prev_value);
+    printf("[%d/%d][Account %d] %d --> %d\n", i + 1, nb_steps, account_idx, prev_value, account_ptr[account_idx]);
+
     sem_post(account_sem_id, account_idx);
-    
+
     sleep(1); 
   } 
 }
@@ -190,12 +191,14 @@ void run_transfer(int account_sem_id, int* account_ptr, int account_from, int ac
   int res;
   struct sembuf ops[2] = { { account_from, -1, 0 }, { account_to, -1, 0} };
 
+  printf("[TRANSFER] Accounts: %d --> %d\tCash amount: %d\tSteps: %d\n", account_from, account_to, cash_amount, nb_steps);
   for(i = 0; i < nb_steps; i++) {
-    printf("[%d/%d] TRANFSTER (%d -> %d) --> moving cash amount: %d\n", i + 1, nb_steps, account_from, account_to, cash_amount);
-
     // Sem_wait for both accounts
+    ops[0].sem_op = -1;
+    ops[1].sem_op = -1;
     res = semop(account_sem_id, ops, 2);
     may_die(res, "semop transfer wait");
+
     prev_value_from = account_ptr[account_from];
     prev_value_to = account_ptr[account_to];
     RAND_SLEEP
@@ -206,7 +209,9 @@ void run_transfer(int account_sem_id, int* account_ptr, int account_from, int ac
     assert(prev_value_from - cash_amount == account_ptr[account_from]);
     assert(prev_value_to + cash_amount  == account_ptr[account_to]);
 
-    printf("Now on accounts: %d -> %d cash (prev: %d), %d -> %d cash (prev: %d)\n", account_from, account_ptr[account_from], prev_value_from, account_to, account_ptr[account_to], prev_value_to); 
+    printf("[%d/%d]\n", i + 1, nb_steps);
+    printf("Account from %d: %d --> %d\n", account_from, prev_value_from, account_ptr[account_from]);
+    printf("Account to %d: %d --> %d\n", account_to, prev_value_to, account_ptr[account_to]);
     
     // Sem_post for both accounts
     ops[0].sem_op = 1;
