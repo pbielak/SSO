@@ -9,6 +9,7 @@
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
+#include <errno.h>
 
 #define RAND_SLEEP usleep((rand() % (int) 5E5) + 1E5);
 
@@ -152,18 +153,38 @@ void may_die(int ret_code, char* cause) {
 
 void sem_wait(int sem_id, int semnum) {
   int res;
+  int value;
   struct sembuf op = { semnum, -1, 0 };
 
   res = semop(sem_id, &op, 1);
-  may_die(res, "semop wait");
+  if (res == EINTR) {
+    value = semctl(sem_id, semnum, GETVAL, 0);
+    if (value != 0) {
+      res = semctl(sem_id, semnum, SETVAL, 0);
+      may_die(res, "semctl set val wait");
+    }
+  }
+  else {
+    may_die(res, "semop wait");
+  }
 }
 
 void sem_post(int sem_id, int semnum) {
   int res;
+  int value;
   struct sembuf op = { semnum, 1, 0 };
 
   res = semop(sem_id, &op, 1);
-  may_die(res, "semop post");
+  if (res == EINTR) {
+    value = semctl(sem_id, semnum, GETVAL, 0);
+    if (value != 1) {
+      res = semctl(sem_id, semnum, SETVAL, 1);
+      may_die(res, "semctl set val post");
+    }
+  }
+  else {
+    may_die(res, "semop post");
+  }
 }
 
 void run_withdraw(int account_sem_id, int* account_ptr, int account_idx, int cash_amount, int nb_steps) {
@@ -188,7 +209,7 @@ void run_withdraw(int account_sem_id, int* account_ptr, int account_idx, int cas
 
 void run_transfer(int account_sem_id, int* account_ptr, int account_from, int account_to, int cash_amount, int nb_steps) {
   int i, prev_value_from, prev_value_to;
-  int res;
+  int res, value;
   struct sembuf ops[2] = { { account_from, -1, 0 }, { account_to, -1, 0} };
 
   printf("[TRANSFER] Accounts: %d --> %d\tCash amount: %d\tSteps: %d\n", account_from, account_to, cash_amount, nb_steps);
@@ -197,7 +218,18 @@ void run_transfer(int account_sem_id, int* account_ptr, int account_from, int ac
     ops[0].sem_op = -1;
     ops[1].sem_op = -1;
     res = semop(account_sem_id, ops, 2);
-    may_die(res, "semop transfer wait");
+    if(res == EINTR) {
+      value = semctl(account_sem_id, account_from, GETVAL, 0);
+      if (value != 0) {
+        res = semctl(account_sem_id, account_from, SETVAL, 0);
+        may_die(res, "semctl set val wait");
+        res = semctl(account_sem_id, account_to, SETVAL, 0);
+        may_die(res, "semctl set val wait");
+      }
+    }
+    else {
+      may_die(res, "semop transfer wait");
+    }
 
     prev_value_from = account_ptr[account_from];
     prev_value_to = account_ptr[account_to];
@@ -217,8 +249,18 @@ void run_transfer(int account_sem_id, int* account_ptr, int account_from, int ac
     ops[0].sem_op = 1;
     ops[1].sem_op = 1;
     res = semop(account_sem_id, ops, 2);
-    may_die(res, "semop transfer post");
-
+    if (res == EINTR) {
+      value = semctl(account_sem_id, account_from, GETVAL, 0);
+      if (value != 1) {
+        res = semctl(account_sem_id, account_from, SETVAL, 1);
+        may_die(res, "semctl set val post");
+        res = semctl(account_sem_id, account_to, SETVAL, 1);
+        may_die(res, "semctl set val post");
+      }
+    }
+    else {
+      may_die(res, "semop transfer post");
+    }
     sleep(1);
   }
 }
