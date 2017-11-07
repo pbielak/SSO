@@ -105,6 +105,7 @@ int main(int argc, char* argv[]) {
   pthread_cond_destroy(&not_enough[0]);
   pthread_cond_destroy(&not_enough[1]);
 
+  free(threads);
   return 0;
 }
 
@@ -147,9 +148,47 @@ void* run_withdraw(void* args) {
 }
 void* run_transfer(void* args) {
   struct transfer_args* t_args = (struct transfer_args*) args;
+  int i;
+  int prev_acc_from, prev_acc_to;
 
-  printf("[Thread %d] TRANSFER %d --> %d\n", t_args->thread_id, t_args->account_from, t_args->account_to);
-  sleep(1);
+  for(i = 0; i < t_args->steps; i++) {
+    // Semaphore wait
+    pthread_mutex_lock(&mtx_lock);
+      while(bank_accounts_balance[t_args->account_from] - t_args->cash_amount < 0) {
+        pthread_cond_wait(&not_enough[t_args->account_from], &mtx_lock);
+      }
+
+      while(sem[t_args->account_from] <= 0 && sem[t_args->account_to] <= 0) {
+        pthread_cond_wait(&operation_cond, &mtx_lock);
+      }
+      sem[t_args->account_from] --;
+      sem[t_args->account_to] --;
+    pthread_mutex_unlock(&mtx_lock);
+
+    prev_acc_from = bank_accounts_balance[t_args->account_from];
+    prev_acc_to = bank_accounts_balance[t_args->account_to];
+
+    sleep(1);
+
+    bank_accounts_balance[t_args->account_from] -= t_args->cash_amount;
+    bank_accounts_balance[t_args->account_to] += t_args->cash_amount;
+
+    printf("[Thread %d][%d/%d] TRANSFER\nAccount %d: %d --> %d\nAccount %d: %d --> %d\n", t_args->thread_id, i + 1, t_args->steps, t_args->account_from, prev_acc_from, bank_accounts_balance[t_args->account_from], t_args->account_to, prev_acc_to, bank_accounts_balance[t_args->account_to]);
+
+    assert(prev_acc_from - t_args->cash_amount == bank_accounts_balance[t_args->account_from]);
+    assert(prev_acc_to + t_args->cash_amount == bank_accounts_balance[t_args->account_to]);
+
+    // Semaphore post
+    pthread_mutex_lock(&mtx_lock);
+      sem[t_args->account_from] ++;
+      sem[t_args->account_to] ++;
+
+      pthread_cond_signal(&operation_cond);
+      pthread_cond_signal(&not_enough[t_args->account_to]);
+    pthread_mutex_unlock(&mtx_lock);
+
+    sleep(1);
+  }
 
   free(t_args);
   return NULL;
