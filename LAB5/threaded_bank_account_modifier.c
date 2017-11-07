@@ -14,12 +14,21 @@ struct withdraw_args {
   int steps;
 };
 
+struct transfer_args {
+  int thread_id;
+  int account_from;
+  int account_to;
+  int cash_amount;
+  int steps;
+};
+
 int sem[NB_ACCOUNTS] = {1, 1};
 int bank_accounts_balance[NB_ACCOUNTS] = {0, 0};
 pthread_mutex_t mtx_lock;
 pthread_cond_t operation_cond, not_enough[NB_ACCOUNTS];
 
 void* run_withdraw(void* args);
+void* run_transfer(void* args);
 
 int main(int argc, char* argv[]) {
   int i;
@@ -28,9 +37,10 @@ int main(int argc, char* argv[]) {
   pthread_t* threads;
   int nb_threads;
   struct withdraw_args* w_args;
+  struct transfer_args* t_args;
 
   if (argc < 5) {
-    fprintf(stderr, "%s -N nb_threads [-W account_number~cash_amount~nb_steps]\n", argv[0]);
+    fprintf(stderr, "%s -N nb_threads [-W account_number~cash_amount~nb_steps][-T account_from~account_to~cash_amount~steps]\n", argv[0]);
     exit(-1);
   }
 
@@ -43,7 +53,7 @@ int main(int argc, char* argv[]) {
   opterr = 0;
   i = 0;
 
-  while((c = getopt(argc, argv, "N:W:")) != -1) {
+  while((c = getopt(argc, argv, "N:W:T:")) != -1) {
    switch(c) {
     case 'N':
       nb_threads = atoi(optarg);
@@ -53,7 +63,7 @@ int main(int argc, char* argv[]) {
 
     case 'W':
       if (threads == NULL) {
-        fprintf(stderr, "First parameter must be -N nb_threads");
+        fprintf(stderr, "First parameter must be -N nb_threads\n");
         exit(-1);
       }
 
@@ -64,6 +74,20 @@ int main(int argc, char* argv[]) {
       pthread_create(&threads[i], NULL, run_withdraw, (void*) w_args);
       i++;
 
+      break;
+
+    case 'T':
+      if (threads == NULL) {
+        fprintf(stderr, "First parameter must be -N nb_threads\n");
+        exit(-1);
+      }
+
+      t_args = (struct transfer_args*) malloc(sizeof(struct transfer_args));
+      t_args->thread_id = i;
+      sscanf(optarg, "%d~%d~%d~%d", &(t_args->account_from), &(t_args->account_to), &(t_args->cash_amount), &(t_args->steps));
+      printf("[%d/%d] Starting transfer on accounts: %d --> %d: Cash: %d Steps: %d\n", i + 1, nb_threads, t_args->account_from, t_args->account_to, t_args->cash_amount, t_args->steps);
+      pthread_create(&threads[i], NULL, run_transfer, (void*) t_args);
+      i++;
       break;
    } 
   }
@@ -119,5 +143,14 @@ void* run_withdraw(void* args) {
   }
 
   free(w_args);
+  return NULL;
+}
+void* run_transfer(void* args) {
+  struct transfer_args* t_args = (struct transfer_args*) args;
+
+  printf("[Thread %d] TRANSFER %d --> %d\n", t_args->thread_id, t_args->account_from, t_args->account_to);
+  sleep(1);
+
+  free(t_args);
   return NULL;
 }
