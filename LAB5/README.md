@@ -9,7 +9,7 @@ make
 
 ## Uruchomienie (przykłady):
 Program posiada 3 flagi:
-  - `-N nb_threads' - liczba wątków (operacji WITHDRAW, TRANSFER); musi zostać podany jako pierwszy argument,
+  - `-N nb_threads` - liczba wątków (operacji WITHDRAW, TRANSFER); musi zostać podany jako pierwszy argument,
   - `-W account_number~cash_amount~nb_steps` - operacja wpłaty danej kwoty (`cash_amount`) z konta (`account_number`) określoną liczbę razy (`nb_steps`); w przypadku podania ujemnej kwoty, operację można interpretować jako wypłatę ,
   - `-T account_from~account_to~cash_amount~nb_steps` - operacja przelewu kwoty (`cash_amount`) z konta `account_from` na konto `account_to` określoną liczbę razy (`nb_steps`)
 
