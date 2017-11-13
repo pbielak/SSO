@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <ctype.h>
 
+#define RAND_SLEEP usleep((rand() % (int) 5E5) + 1E5);
+
 #define NB_ACCOUNTS 2
 
 struct withdraw_args {
@@ -113,32 +115,42 @@ int main(int argc, char* argv[]) {
 void* run_withdraw(void* args) {
   struct withdraw_args* w_args = (struct withdraw_args*) args;
   int i, prev_balance;
+  int h;
 
   for(i = 0; i < w_args->steps; i++) {
-    // Semafor wait
+    // Semaphore wait
     pthread_mutex_lock(&mtx_lock);
-      while(bank_accounts_balance[w_args->account_number] + w_args->cash_amount < 0) {
-        pthread_cond_wait(&not_enough[w_args->account_number], &mtx_lock);
-      }
-      while(sem[w_args->account_number] <= 0) {
-        pthread_cond_wait(&operation_cond, &mtx_lock);
-      }
+      do {
+        h = 0;
+        while (bank_accounts_balance[w_args->account_number] + w_args->cash_amount < 0) {
+          h++;
+          pthread_cond_wait(&not_enough[w_args->account_number], &mtx_lock);
+        }
+        while (sem[w_args->account_number] <= 0) {
+          h++;
+          pthread_cond_wait(&operation_cond, &mtx_lock);
+        }
+      } while(h != 0);
       sem[w_args->account_number] --;
     pthread_mutex_unlock(&mtx_lock);
     
-    // Critcal section
+    // Critic section
+
     prev_balance = bank_accounts_balance[w_args->account_number];
-    sleep(1);
+    RAND_SLEEP
     bank_accounts_balance[w_args->account_number] += w_args->cash_amount;
     printf("[Thread %d][%d/%d] WITHDRAW account %d: %d --> %d\n", w_args->thread_id, i + 1, w_args->steps, w_args->account_number, prev_balance, bank_accounts_balance[w_args->account_number]);
 
     assert(prev_balance + w_args->cash_amount == bank_accounts_balance[w_args->account_number]);
-    
-    // Semafor post
+
+    // Semaphore post
     pthread_mutex_lock(&mtx_lock);
       sem[w_args->account_number] ++;
       pthread_cond_signal(&operation_cond);
-      pthread_cond_signal(&not_enough[w_args->account_number]);
+
+      if (w_args->cash_amount > 0) {
+        pthread_cond_signal(&not_enough[w_args->account_number]);
+      }
     pthread_mutex_unlock(&mtx_lock);
     sleep(1);
   }
@@ -150,25 +162,32 @@ void* run_transfer(void* args) {
   struct transfer_args* t_args = (struct transfer_args*) args;
   int i;
   int prev_acc_from, prev_acc_to;
+  int h;
 
   for(i = 0; i < t_args->steps; i++) {
     // Semaphore wait
     pthread_mutex_lock(&mtx_lock);
-      while(bank_accounts_balance[t_args->account_from] - t_args->cash_amount < 0) {
-        pthread_cond_wait(&not_enough[t_args->account_from], &mtx_lock);
-      }
+      do {
+        h = 0;
+        while (bank_accounts_balance[t_args->account_from] - t_args->cash_amount < 0) {
+          h++;
+          pthread_cond_wait(&not_enough[t_args->account_from], &mtx_lock);
+        }
 
-      while(sem[t_args->account_from] <= 0 && sem[t_args->account_to] <= 0) {
-        pthread_cond_wait(&operation_cond, &mtx_lock);
-      }
+        while (sem[t_args->account_from] <= 0 || sem[t_args->account_to] <= 0) {
+          h++;
+          pthread_cond_wait(&operation_cond, &mtx_lock);
+        }
+      } while(h != 0);
       sem[t_args->account_from] --;
       sem[t_args->account_to] --;
     pthread_mutex_unlock(&mtx_lock);
 
+    // Critic section
     prev_acc_from = bank_accounts_balance[t_args->account_from];
     prev_acc_to = bank_accounts_balance[t_args->account_to];
 
-    sleep(1);
+    RAND_SLEEP
 
     bank_accounts_balance[t_args->account_from] -= t_args->cash_amount;
     bank_accounts_balance[t_args->account_to] += t_args->cash_amount;
