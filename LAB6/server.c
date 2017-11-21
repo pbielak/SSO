@@ -94,7 +94,7 @@ void handle_client(int cli_sock) {
     memset(&packet, 0, sizeof(struct protocol_t));
     res = read(cli_sock, &packet, sizeof(struct protocol_t));
     
-    if (res == 0) { // Connection quit by client
+    if (res == 0 || strcmp(packet.cmd, "QUIT") == 0) { // Connection quit by client
       printf("[Server] Got EOF from client... Shutting down connection!\n");
       
       memset(&packet, 0, sizeof(struct protocol_t));
@@ -109,10 +109,7 @@ void handle_client(int cli_sock) {
 
     nb_commands++;
 
-    if(strcmp(packet.cmd, "QUIT_SERV\n") == 0) { // Quit server
-      // Fix  
-    }
-    else if(strcmp(packet.cmd, "LISTDIR") == 0) { // List directory
+    if(strcmp(packet.cmd, "LISTDIR") == 0) { // List directory
        pipe(fd);
        switch(pid = fork()) {
         case -1:

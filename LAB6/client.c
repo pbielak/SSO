@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
     struct sockaddr_in serv_addr;
     int option;
     char filename[64];
+    int getfile_fd;
     struct protocol_t packet;
 
     if (argc >= 3) {
@@ -66,6 +67,7 @@ int main(int argc, char* argv[]) {
 
           memset(&packet, 0, sizeof(struct protocol_t));
           res = read(server_sock, &packet, sizeof(struct protocol_t));
+          may_die(res, "LISTDIR read");
 
           assert(strcmp(packet.cmd, "LISTDIR_RES") == 0);
           printf("[Client] Received:\n");
@@ -73,13 +75,52 @@ int main(int argc, char* argv[]) {
           break;
 
         case 2:
-          
+          printf("Filename: ");
+          scanf("%s", filename);
+
           printf("[Client] Sending GETFILE\n");
+          strcpy(packet.cmd, "GETFILE");
+          strcpy(packet.data, filename);
+
+          res = write(server_sock, &packet, sizeof(struct protocol_t));
+          may_die(res, "GETFILE write");
+
+          memset(&packet, 0, sizeof(struct protocol_t));
+          res = read(server_sock, &packet, sizeof(struct protocol_t));
+          may_die(res, "GETFILE read");
+
+          assert(strcmp(packet.cmd, "GETFILE_RES") == 0);
+          printf("[Client] Downloading file: %s...\n", filename);
+          
+          getfile_fd = open(filename, O_CREAT | O_WRONLY, 0666);
+          may_die(getfile_fd, "GETFILE open");
+
+          res = write(getfile_fd, &packet.data, packet.data_len);
+          close(getfile_fd);
+          printf("[Client] File downloaded\n");
           break;
 
         case 3:
-          break;
+          printf("[Client] Quitting...\n");
+          
+          strcpy(packet.cmd, "QUIT");
 
+          res = write(server_sock, &packet, sizeof(struct protocol_t));
+          may_die(res, "QUIT write");
+
+          shutdown(server_sock, SHUT_WR);
+
+          memset(&packet, 0, sizeof(struct protocol_t));
+          res = read(server_sock, &packet, sizeof(struct protocol_t));
+          may_die(res, "QUIT read");
+
+          assert(strcmp(packet.cmd, "STATS") == 0);
+          printf("Stats: %s\n", packet.data);
+
+          shutdown(server_sock, SHUT_RD);
+          close(server_sock);
+          exit(0);
+          break; 
         default:
           fprintf(stderr, "No such command: %d\n", option);
           break;
@@ -93,74 +134,3 @@ void may_die(int res, char* cause) {
         exit(-1);
     }
 }
-/*
-void handle_client(int cli_sock) {
-  struct protocol_t packet;
-  int res, pid;
-  int nb_commands;
-  int fd[2];
-  int getfile_fd;
-  char buf[64];
-
-  nb_commands = 0;
-
-  while(1) {
-    memset(&packet, 0, sizeof(struct protocol_t));
-    res = read(cli_sock, &packet, sizeof(struct protocol_t));
-    
-    if (res == 0) { // Connection quit by client
-      printf("[Server] Got EOF from client... Shutting down connection!\n");
-      
-      memset(&packet, 0, sizeof(struct protocol_t));
-      strcpy(packet.cmd, "STATS");
-      sprintf(packet.data, "%d", nb_commands); 
-
-      write(cli_sock, &packet, sizeof(struct protocol_t));
-      shutdown(cli_sock, SHUT_RDWR);
-      close(cli_sock);
-      break;
-    }
-
-    nb_commands++;
-
-    if(strcmp(packet.cmd, "QUIT_SERV\n") == 0) { // Quit server
-    
-    }
-    else if(strcmp(packet.cmd, "LISTDIR\n") == 0) { // List directory
-       pipe(fd);
-       switch(pid = fork()) {
-        case -1:
-          fprintf(stderr, "[Server][LISTDIR] Fork error\n");
-          break;
-        case 0: // Child
-          close(fd[0]);
-          res = dup2(fd[1], STDOUT_FILENO); may_die(res, "dup2"); 
-          res = execlp("ls", "ls", "-l", "serv_dir/", NULL); may_die(res, "execlp");
-          break;
-        default: // Parent
-          close(fd[1]);
-          memset(&packet, 0, sizeof(struct protocol_t));
-          strcpy(packet.cmd, "LISTDIR_RES");
-          res = read(fd[0], packet.data, sizeof(packet.data));
-          may_die(res, "read listdir");
-          packet.data_len = res;
-          write(cli_sock, &packet, sizeof(struct protocol_t));
-          break;
-       }
-    }
-    else if(strcmp(packet.cmd, "GETFILE\n") == 0) { // Get file with name in args
-      sprintf(buf, "serv_dir/%s", packet.data);
-      memset(&packet, 0, sizeof(struct protocol_t));
-      getfile_fd = open(buf, O_RDONLY); may_die(getfile_fd, "GETFILE open");
-      
-      strcpy(packet.cmd, "GETFILE_RES");
-      res = read(getfile_fd, &packet.data, sizeof(packet.data)); may_die(res, "GETFILE read");
-      packet.data_len = res;
-
-      write(cli_sock, &packet, sizeof(struct protocol_t));
-    }
-    else { // Unknown command
-      printf("[Server] Received unknown command: %s\n", packet.cmd);
-    }
-  }
-}*/
