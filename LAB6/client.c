@@ -8,9 +8,10 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <fcntl.h>
+#include <assert.h>
 
+#define DEFAULT_SERVER_IP "127.0.0.1"
 #define DEFAULT_SERVER_PORT 5000
-#define MAX_WAITING_CLIENTS 5
 
 struct protocol_t {
   char cmd[64];
@@ -19,57 +20,70 @@ struct protocol_t {
 };
   
 void may_die(int res, char* cause);
-void handle_client(int cli_sock);
 
 int main(int argc, char* argv[]) {
+    char* server_ip;
+    int server_port;
+    int res;
+    int server_sock;
+    struct sockaddr_in serv_addr;
+    int option;
+    char filename[64];
+    struct protocol_t packet;
 
-    int serv_sock, cli_sock;
-    int pid, port;
-    int res, status;
-    socklen_t clen;
-    struct sockaddr_in cl_addr, serv_addr;
-
-    if (argc > 1) {
-        port = atoi(argv[1]);
+    if (argc >= 3) {
+      server_ip = argv[1];  
+      server_port = atoi(argv[2]);
     }
     else {
-        port = DEFAULT_SERVER_PORT;
+      server_ip = DEFAULT_SERVER_IP;
+      server_port = DEFAULT_SERVER_PORT;
     }
-
-    serv_sock = socket(AF_INET, SOCK_STREAM, 0);
-    may_die(serv_sock, "socket");
 
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(port);
+    serv_addr.sin_addr.s_addr = inet_addr(server_ip);
+    serv_addr.sin_port = htons(server_port);
+    
+    server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    may_die(server_sock, "socket");
 
-    res = bind(serv_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
-    may_die(res, "bind");
+    res = connect(server_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+    may_die(res, "connect");
 
-    res = listen(serv_sock, MAX_WAITING_CLIENTS);
-    may_die(res, "listen");
-
-    clen = sizeof(cl_addr);
 
     while(1) {
-        cli_sock = accept(serv_sock, (struct sockaddr*) &cl_addr, &clen);
-        may_die(cli_sock, "accept");
+      memset(&packet, 0, sizeof(struct protocol_t));
+      printf("1) LISTDIR\n2) GETFILE\n3) QUIT\n");
+      scanf("%d", &option);
 
-        printf("[Server] New connection from %s:%d\n", inet_ntoa(cl_addr.sin_addr), cl_addr.sin_port);
+      switch(option) {
+        case 1:
+          printf("[Client] Sending LISTDIR\n");
+          strcpy(packet.cmd, "LISTDIR");
+          res = write(server_sock, &packet, sizeof(struct protocol_t));
+          may_die(res, "LISTDIR write");
 
-        switch(pid = fork()) {
-            case 0:
-                close(serv_sock);
-                handle_client(cli_sock);
-                exit(0);
-            case -1:
-                perror("fork");
-                exit(-1);
-        }
-        
-        close(cli_sock);
-        while(waitpid((pid_t)-1, &status, WNOHANG) != -1);
+          memset(&packet, 0, sizeof(struct protocol_t));
+          res = read(server_sock, &packet, sizeof(struct protocol_t));
+
+          assert(strcmp(packet.cmd, "LISTDIR_RES") == 0);
+          printf("[Client] Received:\n");
+          printf("%s\n", packet.data);
+          break;
+
+        case 2:
+          
+          printf("[Client] Sending GETFILE\n");
+          break;
+
+        case 3:
+          break;
+
+        default:
+          fprintf(stderr, "No such command: %d\n", option);
+          break;
+      }
     }
 }
 
@@ -79,7 +93,7 @@ void may_die(int res, char* cause) {
         exit(-1);
     }
 }
-
+/*
 void handle_client(int cli_sock) {
   struct protocol_t packet;
   int res, pid;
@@ -110,9 +124,9 @@ void handle_client(int cli_sock) {
     nb_commands++;
 
     if(strcmp(packet.cmd, "QUIT_SERV\n") == 0) { // Quit server
-      // Fix  
+    
     }
-    else if(strcmp(packet.cmd, "LISTDIR") == 0) { // List directory
+    else if(strcmp(packet.cmd, "LISTDIR\n") == 0) { // List directory
        pipe(fd);
        switch(pid = fork()) {
         case -1:
@@ -134,7 +148,7 @@ void handle_client(int cli_sock) {
           break;
        }
     }
-    else if(strcmp(packet.cmd, "GETFILE") == 0) { // Get file with name in args
+    else if(strcmp(packet.cmd, "GETFILE\n") == 0) { // Get file with name in args
       sprintf(buf, "serv_dir/%s", packet.data);
       memset(&packet, 0, sizeof(struct protocol_t));
       getfile_fd = open(buf, O_RDONLY); may_die(getfile_fd, "GETFILE open");
@@ -142,7 +156,6 @@ void handle_client(int cli_sock) {
       strcpy(packet.cmd, "GETFILE_RES");
       res = read(getfile_fd, &packet.data, sizeof(packet.data)); may_die(res, "GETFILE read");
       packet.data_len = res;
-      close(getfile_fd);
 
       write(cli_sock, &packet, sizeof(struct protocol_t));
     }
@@ -150,4 +163,4 @@ void handle_client(int cli_sock) {
       printf("[Server] Received unknown command: %s\n", packet.cmd);
     }
   }
-}
+}*/
