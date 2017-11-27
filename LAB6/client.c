@@ -7,52 +7,53 @@
 int get_connection(char* server_ip, int server_port);
 
 void list_directory(int server_sock);
+
 void download_file(int server_sock, char* filename);
+
 void quit(int server_sock);
 
 int main(int argc, char* argv[]) {
-    char* server_ip;
-    int server_port;
-    int server_sock;
-    int option;
-    char filename[64];
+  char* server_ip;
+  int server_port;
+  int server_sock;
+  int option;
+  char filename[64];
 
-    if (argc >= 3) {
-      server_ip = argv[1];  
-      server_port = atoi(argv[2]);
+  if (argc >= 3) {
+    server_ip = argv[1];
+    server_port = atoi(argv[2]);
+  } else {
+    server_ip = DEFAULT_SERVER_IP;
+    server_port = DEFAULT_SERVER_PORT;
+  }
+
+  server_sock = get_connection(server_ip, server_port);
+
+  while (1) {
+    printf("1) LISTDIR\n2) GETFILE\n3) QUIT\n");
+    scanf("%d", &option);
+
+    switch (option) {
+      case 1:
+        list_directory(server_sock);
+        break;
+
+      case 2:
+        printf("Filename: ");
+        scanf("%s", filename);
+
+        download_file(server_sock, filename);
+        break;
+
+      case 3:
+        quit(server_sock);
+        exit(0);
+
+      default:
+        fprintf(stderr, "No such command: %d\n", option);
+        break;
     }
-    else {
-      server_ip = DEFAULT_SERVER_IP;
-      server_port = DEFAULT_SERVER_PORT;
-    }
-
-    server_sock = get_connection(server_ip, server_port);
-
-    while(1) {
-      printf("1) LISTDIR\n2) GETFILE\n3) QUIT\n");
-      scanf("%d", &option);
-
-      switch(option) {
-        case 1:
-          list_directory(server_sock);
-          break;
-
-        case 2:
-          printf("Filename: ");
-          scanf("%s", filename);
-
-          download_file(server_sock, filename);
-          break;
-
-        case 3:
-          quit(server_sock);
-          exit(0);
-
-        default:
-          fprintf(stderr, "No such command: %d\n", option);
-          break;
-      }
-    }
+  }
 }
 
 int get_connection(char* server_ip, int server_port) {
@@ -84,7 +85,7 @@ void list_directory(int server_sock) {
   may_die(res, "LISTDIR write");
 
   printf("[Client] Received:\n");
-  while(1) {
+  while (1) {
     memset(&packet, 0, sizeof(struct protocol_t));
     res = read(server_sock, &packet, sizeof(struct protocol_t));
     may_die(res, "LISTDIR read");
@@ -110,7 +111,7 @@ void download_file(int server_sock, char* filename) {
   getfile_fd = open(filename, O_CREAT | O_WRONLY, 0666);
   may_die(getfile_fd, "GETFILE open");
 
-  while(1) {
+  while (1) {
     res = read(server_sock, &packet, sizeof(struct protocol_t));
     may_die(res, "GETFILE read");
 

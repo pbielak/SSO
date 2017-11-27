@@ -29,5 +29,4 @@ void may_die(int res, char* cause) {
 }
 
 
-
 #endif
