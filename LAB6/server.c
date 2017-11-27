@@ -15,7 +15,7 @@
 struct protocol_t {
   char cmd[64];
   int data_len;
-  char data[2048];
+  char data[4096];
 };
   
 void may_die(int res, char* cause);
@@ -123,25 +123,39 @@ void handle_client(int cli_sock) {
         default: // Parent
           close(fd[1]);
           memset(&packet, 0, sizeof(struct protocol_t));
-          strcpy(packet.cmd, "LISTDIR_RES");
-          res = read(fd[0], packet.data, sizeof(packet.data));
-          may_die(res, "read listdir");
-          packet.data_len = res;
+
+          while((res = read(fd[0], &packet.data, sizeof(packet.data))) != 0) {
+            may_die(res, "read listdir");
+
+            strcpy(packet.cmd, "LISTDIR_RES");
+            packet.data_len = res;
+            write(cli_sock, &packet, sizeof(struct protocol_t));
+          }
+
+          strcpy(packet.cmd, "LISTDIR_DONE");
           write(cli_sock, &packet, sizeof(struct protocol_t));
           break;
        }
     }
     else if(strcmp(packet.cmd, "GETFILE") == 0) { // Get file with name in args
       sprintf(buf, "serv_dir/%s", packet.data);
-      memset(&packet, 0, sizeof(struct protocol_t));
       getfile_fd = open(buf, O_RDONLY); may_die(getfile_fd, "GETFILE open");
-      
-      strcpy(packet.cmd, "GETFILE_RES");
-      res = read(getfile_fd, &packet.data, sizeof(packet.data)); may_die(res, "GETFILE read");
-      packet.data_len = res;
-      close(getfile_fd);
 
+      do {
+          memset(&packet, 0, sizeof(struct protocol_t));
+          strcpy(packet.cmd, "GETFILE_RES");
+          res = read(getfile_fd, &packet.data, sizeof(packet.data));
+          may_die(res, "GETFILE read");
+
+          if (res == 0) break;
+          packet.data_len = res;
+
+          write(cli_sock, &packet, sizeof(struct protocol_t));
+      } while(res != 0);
+
+      strcpy(packet.cmd, "GETFILE_DONE");
       write(cli_sock, &packet, sizeof(struct protocol_t));
+      close(getfile_fd);
     }
     else { // Unknown command
       printf("[Server] Received unknown command: %s\n", packet.cmd);

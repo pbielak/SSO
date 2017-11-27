@@ -16,7 +16,7 @@
 struct protocol_t {
   char cmd[64];
   int data_len;
-  char data[2048];
+  char data[4096];
 };
   
 void may_die(int res, char* cause);
@@ -65,13 +65,17 @@ int main(int argc, char* argv[]) {
           res = write(server_sock, &packet, sizeof(struct protocol_t));
           may_die(res, "LISTDIR write");
 
-          memset(&packet, 0, sizeof(struct protocol_t));
-          res = read(server_sock, &packet, sizeof(struct protocol_t));
-          may_die(res, "LISTDIR read");
-
-          assert(strcmp(packet.cmd, "LISTDIR_RES") == 0);
           printf("[Client] Received:\n");
-          printf("%s\n", packet.data);
+          do {
+            memset(&packet, 0, sizeof(struct protocol_t));
+            res = read(server_sock, &packet, sizeof(struct protocol_t));
+            may_die(res, "LISTDIR read");
+
+            if (res == 0 || strcmp(packet.cmd, "LISTDIR_DONE") == 0) break;
+
+            printf("%s\n", packet.data);
+          } while(res != 0);
+
           break;
 
         case 2:
@@ -85,17 +89,19 @@ int main(int argc, char* argv[]) {
           res = write(server_sock, &packet, sizeof(struct protocol_t));
           may_die(res, "GETFILE write");
 
-          memset(&packet, 0, sizeof(struct protocol_t));
-          res = read(server_sock, &packet, sizeof(struct protocol_t));
-          may_die(res, "GETFILE read");
-
-          assert(strcmp(packet.cmd, "GETFILE_RES") == 0);
-          printf("[Client] Downloading file: %s...\n", filename);
-          
           getfile_fd = open(filename, O_CREAT | O_WRONLY, 0666);
           may_die(getfile_fd, "GETFILE open");
 
-          res = write(getfile_fd, &packet.data, packet.data_len);
+          do {
+              res = read(server_sock, &packet, sizeof(struct protocol_t));
+              may_die(res, "GETFILE read");
+
+              if (res == 0 || strcmp(packet.cmd, "GETFILE_DONE") == 0) break;
+
+              printf("[Client] Downloading file: %s...\n", filename);
+              write(getfile_fd, &packet.data, packet.data_len);
+          } while(res != 0);
+
           close(getfile_fd);
           printf("[Client] File downloaded\n");
           break;
