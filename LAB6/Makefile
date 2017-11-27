@@ -8,6 +8,6 @@ clean:
 
 zip: lab6.zip
 
-lab6.zip: *.c Makefile README.md
+lab6.zip: *.c *.h Makefile README.md
 
 %: %.c

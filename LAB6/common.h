@@ -20,13 +20,27 @@ struct protocol_t {
 };
 
 
-// Util functions
+// Util function declarations
+void may_die(int res, char* cause);
+struct protocol_t get_packet_from(int sock, int* res_out);
+
+
+// Definitions
+struct protocol_t get_packet_from(int sock, int* res_out) {
+  struct protocol_t packet;
+  ssize_t res;
+
+  res = read(sock, &packet, sizeof(struct protocol_t));
+  may_die((int) res, "get_packet_from");
+
+  *res_out = (int) res;
+  return packet;
+}
+
 void may_die(int res, char* cause) {
   if (res < 0) {
     perror(cause);
     exit(-1);
   }
 }
-
-
 #endif

@@ -84,20 +84,20 @@ void handle_client(int cli_sock) {
 
   while (1) {
     memset(&packet, 0, sizeof(struct protocol_t));
-    res = (int) read(cli_sock, &packet, sizeof(struct protocol_t));
+    packet = get_packet_from(cli_sock, &res);
 
-    if (res == 0 || strcmp(packet.cmd, "QUIT") == 0) { // Connection quit by client
+    if (res == 0 || strcmp(packet.cmd, "QUIT") == 0) {
       handle_client_quit(cli_sock, nb_commands);
       break;
     }
 
     nb_commands++;
 
-    if (strcmp(packet.cmd, "LISTDIR") == 0) { // List directory
+    if (strcmp(packet.cmd, "LISTDIR") == 0) {
       handle_client_listdir(cli_sock);
-    } else if (strcmp(packet.cmd, "GETFILE") == 0) { // Get file with name in args
+    } else if (strcmp(packet.cmd, "GETFILE") == 0) {
       handle_client_getfile(cli_sock, packet.data);
-    } else { // Unknown command
+    } else {
       printf("[Server] Received unknown command: %s\n", packet.cmd);
     }
   }

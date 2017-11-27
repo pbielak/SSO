@@ -77,18 +77,17 @@ int get_connection(char* server_ip, int server_port) {
 
 void list_directory(int server_sock) {
   struct protocol_t packet;
-  ssize_t res;
+  int res;
 
   printf("[Client] Sending LISTDIR\n");
   strcpy(packet.cmd, "LISTDIR");
-  res = write(server_sock, &packet, sizeof(struct protocol_t));
+  res = (int) write(server_sock, &packet, sizeof(struct protocol_t));
   may_die(res, "LISTDIR write");
 
   printf("[Client] Received:\n");
   while (1) {
     memset(&packet, 0, sizeof(struct protocol_t));
-    res = read(server_sock, &packet, sizeof(struct protocol_t));
-    may_die(res, "LISTDIR read");
+    packet = get_packet_from(server_sock, &res);
 
     if (res == 0 || strcmp(packet.cmd, "LISTDIR_DONE") == 0) break;
 
@@ -98,49 +97,48 @@ void list_directory(int server_sock) {
 
 void download_file(int server_sock, char* filename) {
   struct protocol_t packet;
-  ssize_t res;
-  int getfile_fd;
+  int res;
+  int fd;
 
   printf("[Client] Sending GETFILE\n");
   strcpy(packet.cmd, "GETFILE");
   strcpy(packet.data, filename);
 
-  res = write(server_sock, &packet, sizeof(struct protocol_t));
+  res = (int) write(server_sock, &packet, sizeof(struct protocol_t));
   may_die(res, "GETFILE write");
 
-  getfile_fd = open(filename, O_CREAT | O_WRONLY, 0666);
-  may_die(getfile_fd, "GETFILE open");
+  fd = open(filename, O_CREAT | O_WRONLY, 0666);
+  may_die(fd, "GETFILE open");
 
   while (1) {
-    res = read(server_sock, &packet, sizeof(struct protocol_t));
-    may_die(res, "GETFILE read");
+    packet = get_packet_from(server_sock, &res);
 
     if (res == 0 || strcmp(packet.cmd, "GETFILE_DONE") == 0) break;
 
     printf("[Client] Downloading file: %s...\n", filename);
-    write(getfile_fd, &packet.data, packet.data_len);
+    write(fd, &packet.data, packet.data_len);
   }
 
-  close(getfile_fd);
+  close(fd);
   printf("[Client] File downloaded\n");
 }
 
 void quit(int server_sock) {
   struct protocol_t packet;
-  ssize_t res;
+  int res;
 
   printf("[Client] Quitting...\n");
 
   strcpy(packet.cmd, "QUIT");
 
-  res = write(server_sock, &packet, sizeof(struct protocol_t));
+  res = (int) write(server_sock, &packet, sizeof(struct protocol_t));
   may_die(res, "QUIT write");
 
   shutdown(server_sock, SHUT_WR);
 
   memset(&packet, 0, sizeof(struct protocol_t));
-  res = read(server_sock, &packet, sizeof(struct protocol_t));
-  may_die(res, "QUIT read");
+  packet = get_packet_from(server_sock, &res);
+
 
   assert(strcmp(packet.cmd, "STATS") == 0);
   printf("Stats: %s\n", packet.data);
