@@ -113,7 +113,8 @@ void handle_client_quit(int client_sock, int nb_commands) {
   strcpy(packet.cmd, "STATS");
   sprintf(packet.data, "%d", nb_commands);
 
-  write(client_sock, &packet, sizeof(struct protocol_t));
+  send_packet_to(client_sock, packet);
+
   shutdown(client_sock, SHUT_RDWR);
   close(client_sock);
 
@@ -146,11 +147,12 @@ void handle_client_listdir(int client_sock) {
 
         strcpy(packet.cmd, "LISTDIR_RES");
         packet.data_len = res;
-        write(client_sock, &packet, sizeof(struct protocol_t));
+
+        send_packet_to(client_sock, packet);
       }
 
       strcpy(packet.cmd, "LISTDIR_DONE");
-      write(client_sock, &packet, sizeof(struct protocol_t));
+      send_packet_to(client_sock, packet);
       break;
   }
 
@@ -175,10 +177,10 @@ void handle_client_getfile(int client_sock, char* filename) {
     if (res == 0) break;
     packet.data_len = res;
 
-    write(client_sock, &packet, sizeof(struct protocol_t));
+    send_packet_to(client_sock, packet);
   } while (res != 0);
 
   strcpy(packet.cmd, "GETFILE_DONE");
-  write(client_sock, &packet, sizeof(struct protocol_t));
+  send_packet_to(client_sock, packet);
   close(fd);
 }

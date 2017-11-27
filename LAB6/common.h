@@ -23,6 +23,7 @@ struct protocol_t {
 // Util function declarations
 void may_die(int res, char* cause);
 struct protocol_t get_packet_from(int sock, int* res_out);
+void send_packet_to(int sock, struct protocol_t packet);
 
 
 // Definitions
@@ -35,6 +36,13 @@ struct protocol_t get_packet_from(int sock, int* res_out) {
 
   *res_out = (int) res;
   return packet;
+}
+
+void send_packet_to(int sock, struct protocol_t packet) {
+  ssize_t res;
+
+  res = write(sock, &packet, sizeof(struct protocol_t));
+  may_die((int) res, "send_packet_to");
 }
 
 void may_die(int res, char* cause) {

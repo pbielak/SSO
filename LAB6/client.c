@@ -81,8 +81,8 @@ void list_directory(int server_sock) {
 
   printf("[Client] Sending LISTDIR\n");
   strcpy(packet.cmd, "LISTDIR");
-  res = (int) write(server_sock, &packet, sizeof(struct protocol_t));
-  may_die(res, "LISTDIR write");
+
+  send_packet_to(server_sock, packet);
 
   printf("[Client] Received:\n");
   while (1) {
@@ -104,8 +104,7 @@ void download_file(int server_sock, char* filename) {
   strcpy(packet.cmd, "GETFILE");
   strcpy(packet.data, filename);
 
-  res = (int) write(server_sock, &packet, sizeof(struct protocol_t));
-  may_die(res, "GETFILE write");
+  send_packet_to(server_sock, packet);
 
   fd = open(filename, O_CREAT | O_WRONLY, 0666);
   may_die(fd, "GETFILE open");
@@ -131,8 +130,7 @@ void quit(int server_sock) {
 
   strcpy(packet.cmd, "QUIT");
 
-  res = (int) write(server_sock, &packet, sizeof(struct protocol_t));
-  may_die(res, "QUIT write");
+  send_packet_to(server_sock, packet);
 
   shutdown(server_sock, SHUT_WR);
 
