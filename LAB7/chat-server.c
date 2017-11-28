@@ -3,18 +3,23 @@
 #define DEFAULT_SERVER_PORT 5000
 #define MAX_CLIENTS 5
 
-int client_sockets[MAX_CLIENTS];
+typedef struct {
+    char host[128];
+    int socket;
+} client_t;
+
+client_t clients[MAX_CLIENTS];
 
 // Return socket
 int get_server_socket(int port);
 
-void init_readfds(int serv_sock, fd_set* readfds, int* max_fd);
+void init_readfds(int server_sock, fd_set* readfds, int* max_fd);
 void accept_new_client(int server_sock);
-void handle_client(int client_sock, int socket_index);
+void handle_client(int client_index);
 
 
 int main(int argc, char* argv[]) {
-  int server_sock, cli_sock;
+  int server_sock;
   int port;
 
   fd_set readfds;
@@ -34,7 +39,7 @@ int main(int argc, char* argv[]) {
   while (1) {
     init_readfds(server_sock, &readfds, &max_fd);
 
-    res = select(max_fd, &readfds, NULL, NULL, NULL);
+    res = select(max_fd + 1, &readfds, NULL, NULL, NULL);
     may_die(res, "select");
 
     if (FD_ISSET(server_sock, &readfds)) {
@@ -42,10 +47,8 @@ int main(int argc, char* argv[]) {
     }
 
     for(i = 0; i < MAX_CLIENTS; i++) {
-      cli_sock = client_sockets[i];
-
-      if (FD_ISSET(cli_sock, &readfds)) {
-       handle_client(cli_sock, i);
+      if (FD_ISSET(clients[i].socket, &readfds)) {
+       handle_client(i);
       }
     }
   }
@@ -82,7 +85,7 @@ void init_readfds(int server_sock, fd_set* readfds, int* max_fd) {
   *max_fd = server_sock;
 
   for(i = 0; i < MAX_CLIENTS; i++) {
-    s = client_sockets[i];
+    s = clients[i].socket;
 
     if (s > 0) {
       FD_SET(s, readfds);
@@ -110,27 +113,37 @@ void accept_new_client(int server_sock) {
   printf("[Server] New connection from %s\n", buf);
 
   for(i = 0; i < MAX_CLIENTS; i++) {
-    if (client_sockets[i] == 0) {
-      client_sockets[i] = client_sock;
+    if (clients[i].socket == 0) {
+      clients[i].socket = client_sock;
+      strcpy(clients[i].host, buf);
       break;
     }
   }
 }
 
-void handle_client(int client_sock, int socket_index) {
+void handle_client(int client_index) {
   struct protocol_t packet;
   int res, i;
+  int cs;
+  int client_sock;
 
+  client_sock = clients[client_index].socket;
   packet = get_packet_from(client_sock, &res);
 
   if (res == 0) {
+    printf("[Server] Client (%s) closed connection.\n", clients[client_index].host);
     close(client_sock);
-    client_sockets[socket_index] = 0;
+    clients[client_index].socket = 0;
+    strcpy(clients[client_index].host, "");
     return;
   }
 
   // Broadcast received message
   for(i = 0; i < MAX_CLIENTS; i++) {
-    
+    cs = clients[i].socket;
+
+    if (cs > 0) {
+      send_packet_to(cs, packet);
+    }
   }
 }
