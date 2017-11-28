@@ -6,12 +6,9 @@
 // Return socket
 int get_server_socket(int port);
 
-void handle_client(int cli_sock);
-
+void handle_client(int client_sock, char* client_name);
 void handle_client_quit(int client_sock, int nb_commands);
-
 void handle_client_listdir(int client_sock);
-
 void handle_client_getfile(int client_sock, char* filename);
 
 int main(int argc, char* argv[]) {
@@ -21,6 +18,7 @@ int main(int argc, char* argv[]) {
   int status;
   socklen_t clen;
   struct sockaddr_in cl_addr;
+  char buf[128];
 
   if (argc > 1) {
     port = atoi(argv[1]);
@@ -31,16 +29,19 @@ int main(int argc, char* argv[]) {
   serv_sock = get_server_socket(port);
   clen = sizeof(cl_addr);
 
+  printf("[Server] Started. Waiting for connections...\n");
+
   while (1) {
     cli_sock = accept(serv_sock, (struct sockaddr*) &cl_addr, &clen);
     may_die(cli_sock, "accept");
 
-    printf("[Server] New connection from %s:%d\n", inet_ntoa(cl_addr.sin_addr), cl_addr.sin_port);
+    sprintf(buf, "%s:%d", inet_ntoa(cl_addr.sin_addr), cl_addr.sin_port);
+    printf("[Server] New connection from %s\n", buf);
 
     switch (pid = fork()) {
       case 0:
         close(serv_sock);
-        handle_client(cli_sock);
+        handle_client(cli_sock, buf);
         exit(0);
       case -1:
         perror("fork");
@@ -74,8 +75,7 @@ int get_server_socket(int port) {
   return server_sock;
 }
 
-
-void handle_client(int cli_sock) {
+void handle_client(int client_sock, char* client_name) {
   struct protocol_t packet;
   int res;
   int nb_commands;
@@ -83,31 +83,31 @@ void handle_client(int cli_sock) {
   nb_commands = 0;
 
   while (1) {
-    memset(&packet, 0, sizeof(struct protocol_t));
-    packet = get_packet_from(cli_sock, &res);
+    packet = get_packet_from(client_sock, &res);
+    printf("[Server] Client (%s) sent -- ", client_name);
 
     if (res == 0 || strcmp(packet.cmd, "QUIT") == 0) {
-      handle_client_quit(cli_sock, nb_commands);
+      printf("EOF / QUIT command... Shutting down connection!\n");
+      handle_client_quit(client_sock, nb_commands);
       break;
     }
 
     nb_commands++;
 
     if (strcmp(packet.cmd, "LISTDIR") == 0) {
-      handle_client_listdir(cli_sock);
+      printf("LISTDIR\n");
+      handle_client_listdir(client_sock);
     } else if (strcmp(packet.cmd, "GETFILE") == 0) {
-      handle_client_getfile(cli_sock, packet.data);
+      printf("GETFILE (%s)\n", packet.data);
+      handle_client_getfile(client_sock, packet.data);
     } else {
-      printf("[Server] Received unknown command: %s\n", packet.cmd);
+      printf("unknown command: %s\n", packet.cmd);
     }
   }
 }
 
-
 void handle_client_quit(int client_sock, int nb_commands) {
   struct protocol_t packet;
-
-  printf("[Server] Got EOF from client... Shutting down connection!\n");
 
   memset(&packet, 0, sizeof(struct protocol_t));
   strcpy(packet.cmd, "STATS");
@@ -117,7 +117,6 @@ void handle_client_quit(int client_sock, int nb_commands) {
 
   shutdown(client_sock, SHUT_RDWR);
   close(client_sock);
-
 }
 
 void handle_client_listdir(int client_sock) {
@@ -162,25 +161,32 @@ void handle_client_getfile(int client_sock, char* filename) {
   char buf[64];
   int fd;
   struct protocol_t packet;
-  int res;
+  int res, cnt;
 
   sprintf(buf, "serv_dir/%s", filename);
   fd = open(buf, O_RDONLY);
   may_die(fd, "GETFILE open");
 
-  do {
+  printf("[Server] Getfile (%s) -- opened file\n", filename);
+  cnt = 0;
+
+  while(1) {
     memset(&packet, 0, sizeof(struct protocol_t));
     strcpy(packet.cmd, "GETFILE_RES");
     res = (int) read(fd, &packet.data, sizeof(packet.data));
     may_die(res, "GETFILE read");
 
     if (res == 0) break;
+
+    printf("[Server] Getfile (%s) -- [%d] read file chunk of size %d\n", filename, cnt++, res);
     packet.data_len = res;
 
     send_packet_to(client_sock, packet);
-  } while (res != 0);
+  }
 
+  memset(&packet, 0, sizeof(struct protocol_t));
   strcpy(packet.cmd, "GETFILE_DONE");
   send_packet_to(client_sock, packet);
   close(fd);
+  printf("[Server] Getfile (%s) -- closed file\n", filename);
 }

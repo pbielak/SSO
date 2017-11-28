@@ -31,6 +31,7 @@ struct protocol_t get_packet_from(int sock, int* res_out) {
   struct protocol_t packet;
   ssize_t res;
 
+  memset(&packet, 0, sizeof(struct protocol_t));
   res = read(sock, &packet, sizeof(struct protocol_t));
   may_die((int) res, "get_packet_from");
 

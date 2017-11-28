@@ -114,8 +114,8 @@ void download_file(int server_sock, char* filename) {
 
     if (res == 0 || strcmp(packet.cmd, "GETFILE_DONE") == 0) break;
 
-    printf("[Client] Downloading file: %s...\n", filename);
-    write(fd, &packet.data, packet.data_len);
+    printf("[Client] Downloading file: %s. Received: %d bytes\n", filename, packet.data_len);
+    write(fd, &packet.data, (size_t) packet.data_len);
   }
 
   close(fd);
