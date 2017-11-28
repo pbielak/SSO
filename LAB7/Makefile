@@ -6,6 +6,9 @@ all: $(TARGETS)
 clean:
 	rm -f *.o $(TARGETS)
 
+chat-client: chat-client.c
+	$(CC) $(CFLAGS) -o $@ $^ -lncurses
+
 zip: lab7.zip
 
 lab7.zip: *.c *.h Makefile README.md

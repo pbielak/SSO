@@ -29,10 +29,26 @@ void send_packet_to(int sock, struct protocol_t packet);
 struct protocol_t get_packet_from(int sock, int* res_out) {
   struct protocol_t packet;
   ssize_t res;
+  int expected_size;
+  struct protocol_t* ptr;
 
-  memset(&packet, 0, sizeof(struct protocol_t));
-  res = read(sock, &packet, sizeof(struct protocol_t));
-  may_die((int) res, "get_packet_from");
+  expected_size = sizeof(struct protocol_t);
+
+  memset(&packet, 0, expected_size);
+  ptr = &packet;
+
+  do {
+    res = read(sock, ptr, (size_t) expected_size);
+    may_die((int) res, "get_packet_from");
+
+    if (res == 0) {
+      *res_out = 0;
+      return packet;
+    }
+
+    expected_size -= res;
+    ptr += res;
+  } while(expected_size > 0);
 
   *res_out = (int) res;
   return packet;

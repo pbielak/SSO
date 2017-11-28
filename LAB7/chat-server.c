@@ -16,6 +16,7 @@ int get_server_socket(int port);
 void init_readfds(int server_sock, fd_set* readfds, int* max_fd);
 void accept_new_client(int server_sock);
 void handle_client(int client_index);
+void broadcast_packet(struct protocol_t packet);
 
 
 int main(int argc, char* argv[]) {
@@ -123,8 +124,7 @@ void accept_new_client(int server_sock) {
 
 void handle_client(int client_index) {
   struct protocol_t packet;
-  int res, i;
-  int cs;
+  int res;
   int client_sock;
 
   client_sock = clients[client_index].socket;
@@ -138,7 +138,14 @@ void handle_client(int client_index) {
     return;
   }
 
-  // Broadcast received message
+  printf("[Server] Client (%s) sent message: [USERNAME: %s MSG: %s]\n", clients[client_index].host, packet.username, packet.msg);
+
+  broadcast_packet(packet);
+}
+
+void broadcast_packet(struct protocol_t packet) {
+  int i, cs;
+
   for(i = 0; i < MAX_CLIENTS; i++) {
     cs = clients[i].socket;
 
