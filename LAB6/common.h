@@ -30,10 +30,17 @@ void send_packet_to(int sock, struct protocol_t packet);
 struct protocol_t get_packet_from(int sock, int* res_out) {
   struct protocol_t packet;
   ssize_t res;
+  int expected_size;
 
-  memset(&packet, 0, sizeof(struct protocol_t));
-  res = read(sock, &packet, sizeof(struct protocol_t));
-  may_die((int) res, "get_packet_from");
+  expected_size = sizeof(struct protocol_t);
+
+  memset(&packet, 0, expected_size);
+
+  do {
+    res = read(sock, &packet, (size_t) expected_size);
+    may_die((int) res, "get_packet_from");
+    expected_size -= res;
+  } while(expected_size > 0);
 
   *res_out = (int) res;
   return packet;
