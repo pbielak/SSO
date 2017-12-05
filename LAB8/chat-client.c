@@ -7,6 +7,7 @@
 
 // Global connection variables
 int server_sock;
+struct sockaddr_in serv_addr;
 char* username;
 
 // Global ncurses variables
@@ -29,6 +30,8 @@ int main(int argc, char* argv[]) {
   fd_set readfds;
   int max_fd, res;
 
+  struct protocol_t packet;
+
   if (argc >= 4) {
     server_ip = argv[1];
     server_port = atoi(argv[2]);
@@ -46,6 +49,11 @@ int main(int argc, char* argv[]) {
 
   server_sock = get_connection(server_ip, server_port);
   max_fd = server_sock;
+
+  strcpy(packet.type, "CLIENT_JOIN");
+  strcpy(packet.username, username);
+  res = sendto(server_sock, &packet, sizeof(struct protocol_t), 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+  may_die(res, "sendto join");
 
   while (1) {
     refresh_gui();
@@ -70,7 +78,7 @@ int main(int argc, char* argv[]) {
 }
 
 int get_connection(char* server_ip, int server_port) {
-  struct sockaddr_in serv_addr;
+  struct sockaddr_in client_addr;
   int server_sock;
   int res;
 
@@ -79,11 +87,16 @@ int get_connection(char* server_ip, int server_port) {
   serv_addr.sin_addr.s_addr = inet_addr(server_ip);
   serv_addr.sin_port = htons(server_port);
 
-  server_sock = socket(AF_INET, SOCK_STREAM, 0);
+  memset(&client_addr, 0, sizeof(client_addr));
+  client_addr.sin_family = AF_INET;
+  client_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  client_addr.sin_port = htons(0);
+
+  server_sock = socket(AF_INET, SOCK_DGRAM, 0);
   may_die(server_sock, "socket");
 
-  res = connect(server_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
-  may_die(res, "connect");
+  res = bind(server_sock, (struct sockaddr*) &client_addr, sizeof(client_addr));
+  may_die(res, "bind");
 
   return server_sock;
 }
@@ -91,31 +104,43 @@ int get_connection(char* server_ip, int server_port) {
 void handle_user_input() {
   struct protocol_t packet;
   char buf[128];
+  int res;
 
   memset(&packet, 0, sizeof(struct protocol_t));
 
   wgetstr(input_window, buf);
   mvwprintw(input_window, 0, 0, "%s", buf);
 
-  strcpy(packet.msg, buf);
+  strcpy(packet.type, "CLIENT_MSG");
   strcpy(packet.username, username);
+  strcpy(packet.msg, buf);
 
-  send_packet_to(server_sock, packet);
+  res = sendto(server_sock, &packet, sizeof(struct protocol_t), 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+  may_die(res, "sendto");
 }
 
 void handle_server_request() {
   struct protocol_t packet;
   int res;
 
-  packet = get_packet_from(server_sock, &res);
+  res = recvfrom(server_sock, &packet, sizeof(struct protocol_t), 0, NULL, NULL);
+  may_die(res, "recvfrom server");
+  assert(strcmp(packet.type, "CLIENT_MSG") == 0);
 
   wprintw(history_window, " %s> %s\n", packet.username, packet.msg);
 }
 
 void handle_quit(int param) {
+  int res;
+  struct protocol_t packet;
+
   endwin();
   printf("Application quit\n");
-  shutdown(server_sock, SHUT_RDWR);
+
+  strcpy(packet.type, "CLIENT_QUIT");
+  res = sendto(server_sock, &packet, sizeof(struct protocol_t), 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+  may_die(res, "sendto quit");
+
   close(server_sock);
   exit(0);
 }
@@ -139,3 +164,4 @@ void refresh_gui() {
   mvwprintw(input_window, 0, 0, "%s> ", username);
   wrefresh(input_window);
 }
+

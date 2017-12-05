@@ -1,10 +1,9 @@
 # Komunikacja UDP (czat internetowy)
 
-Celem było stworzenie prostego czatu internetowego (serwer asynchroniczny + aplikacja kliencka),
+Celem było stworzenie prostego czatu internetowego (serwer + aplikacja kliencka),
 podobnych do poprzedniego laboratorium, przy czym komunikacja powinna odbywać się za pomocą UDP. 
 Aplikacje powinny:
 - korzystać z komunikacji UDP
-- (serwer) asynchronicznie obsługiwać klientów
 - (klient) asynchronicznie reagować na zdarzenia użytkownika i serwera
 
 ## Budowanie
