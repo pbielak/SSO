@@ -51,7 +51,8 @@ int main(int argc, char* argv[]) {
   max_fd = server_sock;
 
   strcpy(packet.type, "CLIENT_JOIN");
-  strcpy(packet.username, username);
+  strncpy(packet.username, username, sizeof(packet.username) - 1);
+  packet.username[sizeof(packet.username) - 1] = '\0';
   res = sendto(server_sock, &packet, sizeof(struct protocol_t), 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
   may_die(res, "sendto join");
 
@@ -112,8 +113,10 @@ void handle_user_input() {
   mvwprintw(input_window, 0, 0, "%s", buf);
 
   strcpy(packet.type, "CLIENT_MSG");
-  strcpy(packet.username, username);
-  strcpy(packet.msg, buf);
+  strncpy(packet.username, username, sizeof(packet.username) - 1);
+  packet.username[sizeof(packet.username) - 1] = '\0';
+  strncpy(packet.msg, buf, sizeof(packet.msg) - 1);
+  packet.msg[sizeof(packet.msg) - 1] = '\0';
 
   res = sendto(server_sock, &packet, sizeof(struct protocol_t), 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
   may_die(res, "sendto");

@@ -108,7 +108,8 @@ void handle_client_join(struct protocol_t packet, struct sockaddr_in client_addr
   for(i = 0; i < MAX_CLIENTS; i++) {
     if (strcmp(clients[i].host, "") == 0) {
       clients[i].addr = client_addr;
-      strcpy(clients[i].host, buf);
+      strncpy(clients[i].host, buf, sizeof(clients[i].host) - 1);
+      clients[i].host[sizeof(clients[i].host) - 1] = '\0';
       break;
     }
   }
