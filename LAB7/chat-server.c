@@ -17,7 +17,8 @@ void init_readfds(int server_sock, fd_set* readfds, int* max_fd);
 void accept_new_client(int server_sock);
 void handle_client(int client_index);
 void broadcast_packet(struct protocol_t packet);
-
+void handle_client_quit(int client_index);
+void handle_sigpipe(int param);
 
 int main(int argc, char* argv[]) {
   int server_sock;
@@ -33,6 +34,7 @@ int main(int argc, char* argv[]) {
     port = DEFAULT_SERVER_PORT;
   }
 
+  signal(SIGPIPE, handle_sigpipe);
   server_sock = get_server_socket(port);
 
   printf("[Server] Started. Waiting for connections...\n");
@@ -131,10 +133,7 @@ void handle_client(int client_index) {
   packet = get_packet_from(client_sock, &res);
 
   if (res == 0) {
-    printf("[Server] Client (%s) closed connection.\n", clients[client_index].host);
-    close(client_sock);
-    clients[client_index].socket = 0;
-    strcpy(clients[client_index].host, "");
+    handle_client_quit(client_index);
     return;
   }
 
@@ -153,4 +152,15 @@ void broadcast_packet(struct protocol_t packet) {
       send_packet_to(cs, packet);
     }
   }
+}
+
+void handle_client_quit(int client_index) {
+  printf("[Server] Client (%s) closed connection.\n", clients[client_index].host);
+  close(clients[client_index].socket);
+  clients[client_index].socket = 0;
+  strcpy(clients[client_index].host, "");
+}
+
+void handle_sigpipe(int param) {
+  printf("[Server] Received SIGPIPE\n");
 }
